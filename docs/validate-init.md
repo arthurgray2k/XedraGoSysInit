@@ -68,22 +68,27 @@ ps -p 1 -o pid,comm,args
 
 ### C. Runlevel Verification
 ```bash
-# Check current runlevel
-runlevel
+# Check current runlevel (using full /sbin path or sudo)
+/sbin/runlevel
 # -> N 2
 
-# Check runlevel state file
+# Or inspect the persistent runlevel state file directly:
 cat /var/run/runlevel
 # -> 2
 ```
+> [!NOTE]
+> On Debian-based distributions, `/sbin` is reserved for administrative utilities. If `runlevel` returns `command not found` under a regular user shell, use `/sbin/runlevel`, `sudo runlevel`, or `/var/run/runlevel`.
 
 ---
 
 ### D. Init Control Channel Test (`telinit`)
 ```bash
-# Request PID 1 to reload inittab
-sudo telinit q
-
-# Check dmesg to observe PID 1 handling the request
-dmesg | tail -n 10
+# Request PID 1 to reload inittab (/etc/inittab)
+sudo /sbin/telinit q
+```
+> [!NOTE]
+> In standard Unix SysVinit, `telinit q` returns **silently with blank output** (exit code 0) upon success. To confirm that PID 1 received and processed the signal, check `dmesg`:
+```bash
+sudo dmesg | tail -n 5
+# -> init: [  INIT  ] Re-reading inittab
 ```
