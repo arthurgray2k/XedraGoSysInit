@@ -56,3 +56,23 @@ This document serves as a parking lot and architectural backlog for future optim
 
 ### 3.3 Automated Builder VM Resource Tuning
 * **Concept**: Provide a host helper script to dynamically scale `xedra-builder`'s CPU core and RAM allocation based on host hardware availability before launching heavy release builds.
+
+### 3.4 Bidirectional VM Clipboard Sharing (Host <-> Guest Copy-Paste)
+* **Concept**: Enable seamless copy-paste between the physical workstation and Xedra virtual machine desktop sessions.
+* **Implementation**:
+  * Ensure `spice-vdagent` daemon autostarts inside the X11 / Fluxbox session (`~/.xinitrc` or `~/.fluxbox/startup`).
+  * Ensure libvirt / QEMU VM definitions (`create-lab-vm.sh` and `create-builder-vm.sh`) provision the SPICE agent virtio-serial channel (`com.redhat.spice.0`).
+* **Feasibility**: 100% supported by Linux SPICE / QEMU drivers.
+
+### 3.5 Dual-Init System Packaging & Installer Selection (C SysVinit vs. goSysVinit)
+* **Concept**: Bundle both init systems within the live ISO and empower users to select their preferred init daemon during system installation.
+* **Architecture**:
+  * Build scripts package both upstream **C SysVinit** (`sysvinit-core`) and **`goSysVinit`** (pure Go static suite).
+  * Update the native installer (`/usr/local/bin/xedra-installer`) to include an interactive init selection step:
+    ```text
+    Choose Init System to deploy:
+      [1] C SysVinit (Debian 13 upstream standard)
+      [2] goSysVinit (Modern Go-based SysVinit reimplementation)
+    ```
+  * The installer deploys the selected binary suite into `/sbin/init` on the target disk partition before configuring the bootloader.
+* **Feasibility**: 100% possible; the underlying `/etc/init.d/*` scripts, runlevel structure, and `/etc/inittab` syntax are fully shared and identical between both implementations.
