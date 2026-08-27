@@ -110,12 +110,17 @@ EOF
     # Deploy goSysVinit static binaries as PID 1 suite
     if [[ -d "${CONFIG_DIR}/gosysvinit-bin" ]]; then
         echo "Installing goSysVinit static binaries into ${ROOTFS_DIR}..."
-        for b in init telinit halt shutdown runlevel killall5 sulogin bootlogd fstab-decode logsave; do
+        rm -f "${ROOTFS_DIR}/sbin/"{init,telinit,halt,reboot,poweroff,shutdown,runlevel,killall5,sulogin,bootlogd,fstab-decode,logsave} \
+              "${ROOTFS_DIR}/bin/"{mountpoint,pidof} \
+              "${ROOTFS_DIR}/usr/bin/"{last,lastb,mesg,readbootlog,utmpdump,wall,pidof} 2>/dev/null || true
+
+        for b in init halt shutdown runlevel killall5 sulogin bootlogd fstab-decode logsave; do
             if [[ -f "${CONFIG_DIR}/gosysvinit-bin/$b" ]]; then
                 cp -f "${CONFIG_DIR}/gosysvinit-bin/$b" "${ROOTFS_DIR}/sbin/$b"
                 chmod 755 "${ROOTFS_DIR}/sbin/$b"
             fi
         done
+        ln -sf init "${ROOTFS_DIR}/sbin/telinit"
         ln -sf halt "${ROOTFS_DIR}/sbin/reboot"
         ln -sf halt "${ROOTFS_DIR}/sbin/poweroff"
 

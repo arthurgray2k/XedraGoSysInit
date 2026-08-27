@@ -538,19 +538,24 @@ configure_chroot_overlays() {
 
     # Install goSysVinit static binaries & symlinks into live rootfs overlay
     if [[ -d "${CONFIG_DIR}/gosysvinit-bin" ]]; then
+        rm -rf "${LB_DIR}/config/includes.chroot/usr/share/gosysvinit/bin"
+        mkdir -p "${LB_DIR}/config/includes.chroot/usr/share/gosysvinit/bin"
         cp -a "${CONFIG_DIR}/gosysvinit-bin/"* "${LB_DIR}/config/includes.chroot/usr/share/gosysvinit/bin/"
         
         # /sbin utilities
-        for b in init telinit halt shutdown runlevel killall5 sulogin bootlogd fstab-decode logsave; do
+        rm -f "${LB_DIR}/config/includes.chroot/sbin/"*
+        for b in init halt shutdown runlevel killall5 sulogin bootlogd fstab-decode logsave; do
             if [[ -f "${CONFIG_DIR}/gosysvinit-bin/$b" ]]; then
                 cp -f "${CONFIG_DIR}/gosysvinit-bin/$b" "${LB_DIR}/config/includes.chroot/sbin/$b"
                 chmod 755 "${LB_DIR}/config/includes.chroot/sbin/$b"
             fi
         done
+        ln -sf init "${LB_DIR}/config/includes.chroot/sbin/telinit"
         ln -sf halt "${LB_DIR}/config/includes.chroot/sbin/reboot"
         ln -sf halt "${LB_DIR}/config/includes.chroot/sbin/poweroff"
 
         # /bin utilities
+        rm -f "${LB_DIR}/config/includes.chroot/bin/"*
         if [[ -f "${CONFIG_DIR}/gosysvinit-bin/mountpoint" ]]; then
             cp -f "${CONFIG_DIR}/gosysvinit-bin/mountpoint" "${LB_DIR}/config/includes.chroot/bin/mountpoint"
             chmod 755 "${LB_DIR}/config/includes.chroot/bin/mountpoint"
