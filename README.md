@@ -61,10 +61,11 @@ Linux Host (Physical Workstation)
 
 ---
 
-## Quick Reference & Helper Guide
+## Guides & Documentation
 
-For an all-in-one cheat sheet with commands, VM IPs, credentials, and build profiles, see:
-👉 **[Builder Helper Guide](docs/builder-helper.md)**
+* 👉 **[Validating goSysVinit in Live System](docs/validate-init.md)** (Live boot proof, dmesg output, and verification commands)
+* 👉 **[Usage & Command Reference](USAGE.md)** (Init system workflows, runlevel management, ISO compilation)
+* 👉 **[Builder Helper Guide](docs/builder-helper.md)** (All-in-one cheat sheet with commands, VM IPs, credentials, and build profiles)
 
 ---
 
