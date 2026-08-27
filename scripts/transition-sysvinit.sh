@@ -150,6 +150,32 @@ configure_xedra_system_files() {
         echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] /etc/inittab installed"
     fi
 
+    # Install /etc/init.d/xedra-init-info
+    cat << 'EOF' > "${ROOTFS_DIR}/etc/init.d/xedra-init-info"
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          xedra-init-info
+# Required-Start:    $local_fs
+# Required-Stop:     
+# Default-Start:     S 2 3 4 5
+# Default-Stop:      
+# Short-Description: Display Xedra Linux active init system info
+### END INIT INFO
+
+INIT_EXEC=$(readlink -f /proc/1/exe 2>/dev/null || echo "/sbin/init")
+INIT_VER=$(/sbin/init --version 2>/dev/null | head -n 1 || echo "goSysVinit")
+
+echo "========================================================"
+echo "  [XEDRA BOOT] Operating System : Xedra Linux 0.4.3"
+echo "  [XEDRA BOOT] Init System      : ${INIT_VER}"
+echo "  [XEDRA BOOT] PID 1 Binary     : ${INIT_EXEC}"
+echo "  [XEDRA BOOT] Boot Mode        : SysVinit Compatibility (goSysVinit)"
+echo "========================================================"
+EOF
+    chmod 755 "${ROOTFS_DIR}/etc/init.d/xedra-init-info"
+    chroot "${ROOTFS_DIR}" update-rc.d xedra-init-info defaults 2>/dev/null || true
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] /etc/init.d/xedra-init-info service enabled"
+
     # Set hostname
     echo "xedra" > "${ROOTFS_DIR}/etc/hostname"
     echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] /etc/hostname configured as 'xedra'"
