@@ -1,6 +1,6 @@
 # Xedra Linux (with goSysVinit)
 
-**XedraGoSysInit** is a specialized edition of Xedra Linux engineered to run [**`goSysVinit`**](https://github.com/arthurgray2k/goSysVinit) as its true PID 1 init daemon and complete userspace supervision suite.
+**XedraGoSysInit** is a variation of [**XedraLinux**](https://github.com/arthurgray2k/XedraLinux) that uses [**`goSysVinit`**](https://github.com/arthurgray2k/goSysVinit)—a drop-in replacement init system written in Go—instead of traditional C SysVinit. It runs `goSysVinit` as its true PID 1 init daemon and complete userspace supervision suite.
 
 ## Core Environments
 
