@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "distro": {
+    "name": "Xedra Linux",
+    "version": "0.4.3",
+    "codename": "genesis",
+    "init_system": "gosysvinit",
+    "iso_application": "Xedra Linux 0.4.3 (with goSysVinit)",
+    "iso_publisher": "Xedra Linux Project",
+    "iso_volume": "XEDRA_0_4_3"
+  },
+  "debian_base": {
+    "distribution": "trixie",
+    "architecture": "amd64",
+    "archive_areas": "main contrib non-free non-free-firmware",
+    "mirror_bootstrap": "https://deb.debian.org/debian",
+    "mirror_binary": "https://deb.debian.org/debian"
+  },
+  "default_profile": "dev",
+  "profiles": {
+    "dev": {
+      "description": "Fast iterative development profile with persistent local package caching, bootstrap cache, and fast compression",
+      "cache_packages": true,
+      "cache_bootstrap": true,
+      "fast_io": true,
+      "purge_on_clean": false,
+      "squashfs_compression": "gzip",
+      "apt_recommends": false,
+      "iso_name": "xedra-0.4.3-amd64-gosysvinit.iso"
+    },
+    "release": {
+      "description": "Pristine official production release build with fresh upstream downloads and high compression",
+      "cache_packages": false,
+      "cache_bootstrap": false,
+      "fast_io": false,
+      "purge_on_clean": true,
+      "squashfs_compression": "xz",
+      "apt_recommends": false,
+      "iso_name": "xedra-0.4.3-amd64-gosysvinit.iso"
+    },
+    "minimal": {
+      "description": "Minimal text-only headless rescue edition",
+      "cache_packages": true,
+      "cache_bootstrap": true,
+      "fast_io": true,
+      "purge_on_clean": false,
+      "squashfs_compression": "gzip",
+      "apt_recommends": false,
+      "iso_name": "xedra-0.4.3-minimal-amd64-gosysvinit.iso",
+      "iso_volume": "XEDRA_0_4_3_MIN",
+      "iso_application": "Xedra Linux 0.4.3 Minimal (with goSysVinit)"
+    }
+  },
+  "live_session": {
+    "hostname": "xedra",
+    "username": "live",
+    "user_groups": "sudo,audio,video,cdrom,plugdev,kvm,input,tty",
+    "autologin": true
+  },
+  "services": {
+    "ssh": {
+      "enabled": true,
+      "port": 22,
+      "password_authentication": true,
+      "permit_root_login": "prohibit-password"
+    },
+    "telnet": {
+      "enabled": false,
+      "port": 23,
+      "permit_root_login": false
+    }
+  }
+}

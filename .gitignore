@@ -1,0 +1,6 @@
+# Xedra Linux - Build Artifacts Ignore Rules
+build/
+output/
+.agents/
+.claude/
+.specs/

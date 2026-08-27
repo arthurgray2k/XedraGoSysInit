@@ -1,0 +1,448 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Xedra Linux - Native System Disk Installer (xedra-installer)
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Purpose:
+#   Interactive CLI/TUI installer that partitions, formats, copies the live
+#   rootfs, and installs UEFI/BIOS GRUB onto a designated target storage drive.
+# ==============================================================================
+
+set -euo pipefail
+
+# ANSI color codes
+readonly COLOR_RESET="\033[0m"
+readonly COLOR_BOLD="\033[1m"
+readonly COLOR_GREEN="\033[32m"
+readonly COLOR_RED="\033[31m"
+readonly COLOR_YELLOW="\033[33m"
+readonly COLOR_CYAN="\033[36m"
+
+TARGET_MOUNT="/mnt/xedra-target"
+NEW_USERNAME="xedra"
+NEW_USER_PASS=""
+ROOT_PASS=""
+TARGET_HOSTNAME="xedra-box"
+
+print_banner() {
+    clear
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}======================================================${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}  Xedra Linux - System Disk Installer (v0.4.3)        ${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_CYAN}======================================================${COLOR_RESET}"
+    echo ""
+}
+
+verify_root() {
+    if [[ "$(id -u)" -ne 0 ]]; then
+        echo -e "${COLOR_RED}Error: xedra-installer must be run with root privileges.${COLOR_RESET}" >&2
+        echo "Please run: sudo xedra-installer" >&2
+        exit 1
+    fi
+}
+
+select_target_disk() {
+    echo -e "${COLOR_BOLD}Scanning for available storage drives...${COLOR_RESET}"
+    echo ""
+
+    # Identify boot media device to exclude it
+    local live_dev=""
+    if [[ -b "/run/live/medium" ]]; then
+        live_dev="$(readlink -f /run/live/medium | sed 's/[0-9]*$//')"
+    fi
+
+    # Enumerate disks
+    local disk_list=()
+    while read -r name size type model; do
+        local dev_path="/dev/${name}"
+        # Skip loop, cdrom, and active live device
+        if [[ "${type}" == "disk" && "${dev_path}" != "${live_dev}" && ! "${dev_path}" =~ loop|zram|sr ]]; then
+            disk_list+=("${dev_path}" "${size} - ${model:-Generic Disk}")
+        fi
+    done < <(lsblk -d -n -o NAME,SIZE,TYPE,MODEL)
+
+    if [[ ${#disk_list[@]} -eq 0 ]]; then
+        if command -v dialog >/dev/null 2>&1; then
+            dialog --clear \
+                --title "Xedra Linux Installer" \
+                --msgbox "No suitable target hard drive was found.\n\nPlease ensure a virtual hard disk (e.g. /dev/vda, /dev/sda) or physical drive is attached to install Xedra Linux onto." 10 60
+            clear
+        else
+            echo -e "${COLOR_RED}Error: No suitable target storage disks found.${COLOR_RESET}" >&2
+            echo "Please ensure a virtual hard drive or physical SSD is attached." >&2
+            read -rp "Press Enter to exit..."
+        fi
+        exit 1
+    fi
+
+    if command -v dialog >/dev/null 2>&1; then
+        local chosen_disk=""
+        chosen_disk=$(dialog --clear \
+            --title "Xedra Linux Installer" \
+            --menu "Select the target drive to install Xedra Linux onto:" 15 60 5 \
+            "${disk_list[@]}" \
+            3>&1 1>&2 2>&3) || true
+        TARGET_DISK="${chosen_disk}"
+        clear
+    else
+        echo "Available Disks:"
+        for ((i=0; i<${#disk_list[@]}; i+=2)); do
+            echo "  $((i/2 + 1))) ${disk_list[i]} (${disk_list[i+1]})"
+        done
+        echo ""
+        read -rp "Enter choice [1-$(( ${#disk_list[@]} / 2 ))]: " choice
+        local index=$(( (choice - 1) * 2 ))
+        TARGET_DISK="${disk_list[index]:-}"
+    fi
+
+    if [[ -z "${TARGET_DISK:-}" || ! -b "${TARGET_DISK}" ]]; then
+        echo "Installation cancelled or invalid disk selection."
+        exit 0
+    fi
+}
+
+configure_user_credentials() {
+    print_banner
+    if command -v dialog >/dev/null 2>&1; then
+        # 1. Prompt for Username
+        while true; do
+            local user_in=""
+            user_in=$(dialog --clear \
+                --title "User Account Configuration" \
+                --inputbox "Enter primary username for the installed system:" 10 60 "xedra" \
+                3>&1 1>&2 2>&3) || true
+            if [[ -z "${user_in}" ]]; then
+                echo "Installation cancelled by user."
+                exit 0
+            fi
+            if [[ "${user_in}" =~ ^[a-z_][a-z0-9_-]*$ && "${user_in}" != "root" ]]; then
+                NEW_USERNAME="${user_in}"
+                break
+            else
+                dialog --title "Invalid Username" \
+                    --msgbox "Username must start with a lowercase letter and contain only lowercase letters, digits, '_' or '-'.\n\n'root' is reserved." 10 60
+            fi
+        done
+
+        # 2. Prompt for User Password
+        while true; do
+            local p1="" p2=""
+            p1=$(dialog --clear --insecure \
+                --title "User Password" \
+                --passwordbox "Enter password for user '${NEW_USERNAME}':" 10 60 \
+                3>&1 1>&2 2>&3) || true
+            if [[ -z "${p1}" ]]; then
+                dialog --msgbox "Password cannot be empty." 8 40
+                continue
+            fi
+            p2=$(dialog --clear --insecure \
+                --title "Confirm User Password" \
+                --passwordbox "Confirm password for user '${NEW_USERNAME}':" 10 60 \
+                3>&1 1>&2 2>&3) || true
+            if [[ "${p1}" == "${p2}" ]]; then
+                NEW_USER_PASS="${p1}"
+                break
+            else
+                dialog --msgbox "Passwords do not match. Please try again." 8 50
+            fi
+        done
+
+        # 3. Prompt for Root Password
+        while true; do
+            local rp1="" rp2=""
+            rp1=$(dialog --clear --insecure \
+                --title "Root Administrator Password" \
+                --passwordbox "Enter password for 'root' superuser:" 10 60 \
+                3>&1 1>&2 2>&3) || true
+            if [[ -z "${rp1}" ]]; then
+                dialog --msgbox "Root password cannot be empty." 8 40
+                continue
+            fi
+            rp2=$(dialog --clear --insecure \
+                --title "Confirm Root Password" \
+                --passwordbox "Confirm password for 'root':" 10 60 \
+                3>&1 1>&2 2>&3) || true
+            if [[ "${rp1}" == "${rp2}" ]]; then
+                ROOT_PASS="${rp1}"
+                break
+            else
+                dialog --msgbox "Passwords do not match. Please try again." 8 50
+            fi
+        done
+
+        # 4. Prompt for System Hostname
+        local host_in=""
+        host_in=$(dialog --clear \
+            --title "System Hostname" \
+            --inputbox "Enter hostname for the installed system:" 10 60 "xedra-box" \
+            3>&1 1>&2 2>&3) || true
+        TARGET_HOSTNAME="${host_in:-xedra-box}"
+        clear
+    else
+        echo -e "${COLOR_BOLD}--- User Account Configuration ---${COLOR_RESET}"
+        read -rp "Enter primary username [xedra]: " user_in
+        NEW_USERNAME="${user_in:-xedra}"
+
+        while true; do
+            read -rsp "Enter password for '${NEW_USERNAME}': " p1
+            echo ""
+            read -rsp "Confirm password for '${NEW_USERNAME}': " p2
+            echo ""
+            if [[ -n "${p1}" && "${p1}" == "${p2}" ]]; then
+                NEW_USER_PASS="${p1}"
+                break
+            else
+                echo -e "${COLOR_RED}Passwords do not match or are empty.${COLOR_RESET}"
+            fi
+        done
+
+        while true; do
+            read -rsp "Enter password for 'root': " rp1
+            echo ""
+            read -rsp "Confirm password for 'root': " rp2
+            echo ""
+            if [[ -n "${rp1}" && "${rp1}" == "${rp2}" ]]; then
+                ROOT_PASS="${rp1}"
+                break
+            else
+                echo -e "${COLOR_RED}Passwords do not match or are empty.${COLOR_RESET}"
+            fi
+        done
+
+        read -rp "Enter system hostname [xedra-box]: " host_in
+        TARGET_HOSTNAME="${host_in:-xedra-box}"
+    fi
+}
+
+confirm_installation() {
+    print_banner
+    echo -e "${COLOR_RED}${COLOR_BOLD}WARNING: ALL DATA ON ${TARGET_DISK} WILL BE COMPLETELY DESTROYED!${COLOR_RESET}"
+    echo ""
+    echo "Target Drive:    ${TARGET_DISK}"
+    echo "Primary User:    ${NEW_USERNAME}"
+    echo "System Hostname: ${TARGET_HOSTNAME}"
+    echo "Partition Table: GPT"
+    echo "Layout:          512MB ESP (FAT32) + Root Filesystem (ext4)"
+    echo ""
+
+    if command -v dialog >/dev/null 2>&1; then
+        if ! dialog --clear \
+            --title "Confirm Disk Overwrite" \
+            --yesno "WARNING: ALL DATA ON ${TARGET_DISK} WILL BE COMPLETELY ERASED.\n\nInstall Xedra Linux for user '${NEW_USERNAME}' on '${TARGET_HOSTNAME}'?" 12 65; then
+            clear
+            echo "Installation cancelled by user."
+            exit 0
+        fi
+        clear
+    else
+        read -rp "Type 'YES' to permanently erase and install to ${TARGET_DISK}: " confirm
+        if [[ "${confirm}" != "YES" ]]; then
+            echo "Installation cancelled by user."
+            exit 0
+        fi
+    fi
+}
+
+partition_and_format() {
+    echo -e "${COLOR_BOLD}--- 1. Partitioning ${TARGET_DISK} (GPT) ---${COLOR_RESET}"
+
+    # Unmount existing partitions if any
+    swapoff -a 2>/dev/null || true
+    umount -R "${TARGET_MOUNT}" 2>/dev/null || true
+    for p in "${TARGET_DISK}"* "${TARGET_DISK}"p*; do
+        if [[ -b "$p" ]]; then
+            umount "$p" 2>/dev/null || true
+        fi
+    done
+
+    # Create GPT partition table
+    parted -s "${TARGET_DISK}" mklabel gpt
+    # 512MB EFI System Partition
+    parted -s "${TARGET_DISK}" mkpart ESP fat32 1MiB 513MiB
+    parted -s "${TARGET_DISK}" set 1 esp on
+    # Root partition taking remaining space
+    parted -s "${TARGET_DISK}" mkpart primary ext4 513MiB 100%
+
+    udevadm settle 2>/dev/null || sleep 2
+
+    # Determine partition paths (handling nvme / vda naming)
+    if [[ "${TARGET_DISK}" =~ [0-9]$ ]]; then
+        EFI_PART="${TARGET_DISK}p1"
+        ROOT_PART="${TARGET_DISK}p2"
+    else
+        EFI_PART="${TARGET_DISK}1"
+        ROOT_PART="${TARGET_DISK}2"
+    fi
+
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] Partitioned: ${EFI_PART} (ESP), ${ROOT_PART} (Root)"
+
+    echo -e "${COLOR_BOLD}--- 2. Formatting Partitions ---${COLOR_RESET}"
+    mkfs.fat -F32 -n "XEDRA_EFI" "${EFI_PART}"
+    mkfs.ext4 -F -L "XEDRA_ROOT" "${ROOT_PART}"
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] Filesystems formatted"
+    echo ""
+}
+
+copy_system() {
+    echo -e "${COLOR_BOLD}--- 3. Copying Xedra System Files ---${COLOR_RESET}"
+    mkdir -p "${TARGET_MOUNT}"
+    mount "${ROOT_PART}" "${TARGET_MOUNT}"
+    mkdir -p "${TARGET_MOUNT}/boot/efi"
+    mount "${EFI_PART}" "${TARGET_MOUNT}/boot/efi"
+
+    echo "Synchronizing live root filesystem to ${ROOT_PART}..."
+    rsync -aAX \
+        --exclude="/proc/*" \
+        --exclude="/sys/*" \
+        --exclude="/dev/*" \
+        --exclude="/run/*" \
+        --exclude="/tmp/*" \
+        --exclude="/mnt/*" \
+        --exclude="/media/*" \
+        --exclude="/lost+found" \
+        --exclude="/var/log/*" \
+        / "${TARGET_MOUNT}/"
+
+    # Create essential virtual directories
+    mkdir -p "${TARGET_MOUNT}/proc" \
+             "${TARGET_MOUNT}/sys" \
+             "${TARGET_MOUNT}/dev" \
+             "${TARGET_MOUNT}/run" \
+             "${TARGET_MOUNT}/tmp" \
+             "${TARGET_MOUNT}/mnt" \
+             "${TARGET_MOUNT}/media"
+    chmod 1777 "${TARGET_MOUNT}/tmp"
+
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] System files copied successfully"
+    echo ""
+}
+
+configure_target_system() {
+    echo -e "${COLOR_BOLD}--- 4. Configuring Bootloader & System Accounts ---${COLOR_RESET}"
+
+    local root_uuid efi_uuid
+    root_uuid="$(blkid -s UUID -o value "${ROOT_PART}")"
+    efi_uuid="$(blkid -s UUID -o value "${EFI_PART}")"
+
+    # Generate /etc/fstab with persistent UUIDs
+    cat << FSTAB_EOF > "${TARGET_MOUNT}/etc/fstab"
+# /etc/fstab: static file system information for Xedra Linux
+# Generated by Xedra Linux Installer (v0.4.3)
+
+# <file system>                             <mount point>   <type>  <options>       <dump>  <pass>
+UUID=${root_uuid}  /          ext4  noatime,errors=remount-ro  0  1
+UUID=${efi_uuid}   /boot/efi  vfat  umask=0077                 0  1
+proc               /proc      proc  defaults                   0  0
+sysfs              /sys       sysfs defaults                   0  0
+FSTAB_EOF
+
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] /etc/fstab generated with persistent UUIDs"
+
+    # Configure Hostname and /etc/hosts
+    echo "${TARGET_HOSTNAME}" > "${TARGET_MOUNT}/etc/hostname"
+    cat << HOSTS_EOF > "${TARGET_MOUNT}/etc/hosts"
+127.0.0.1   localhost
+127.0.1.1   ${TARGET_HOSTNAME}
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+HOSTS_EOF
+
+    # Configure User Accounts in chroot
+    echo "Configuring user accounts on installed system..."
+    if ! chroot "${TARGET_MOUNT}" id -u "${NEW_USERNAME}" >/dev/null 2>&1; then
+        chroot "${TARGET_MOUNT}" useradd -m -s /bin/bash -G sudo,audio,video,cdrom,plugdev,kvm,input,tty "${NEW_USERNAME}"
+    fi
+
+    # Set custom passwords safely
+    printf '%s:%s\n' "${NEW_USERNAME}" "${NEW_USER_PASS}" | chroot "${TARGET_MOUNT}" chpasswd
+    printf 'root:%s\n' "${ROOT_PASS}" | chroot "${TARGET_MOUNT}" chpasswd
+
+    # Configure sudo privileges for new user
+    mkdir -p "${TARGET_MOUNT}/etc/sudoers.d"
+    echo "${NEW_USERNAME} ALL=(ALL:ALL) ALL" > "${TARGET_MOUNT}/etc/sudoers.d/${NEW_USERNAME}"
+    chmod 0440 "${TARGET_MOUNT}/etc/sudoers.d/${NEW_USERNAME}"
+
+    # Completely remove temporary live user from installed hard disk
+    if [[ "${NEW_USERNAME}" != "live" ]]; then
+        chroot "${TARGET_MOUNT}" userdel -r -f live 2>/dev/null || true
+        rm -rf "${TARGET_MOUNT}/home/live"
+        rm -f "${TARGET_MOUNT}/etc/sudoers.d/live"
+        rm -rf "${TARGET_MOUNT}/var/mail/live" "${TARGET_MOUNT}/var/spool/mail/live"
+    fi
+
+    # Copy skel dotfiles and Fluxbox profile to new user's home
+    cp -r "${TARGET_MOUNT}/etc/skel/." "${TARGET_MOUNT}/home/${NEW_USERNAME}/"
+    chroot "${TARGET_MOUNT}" chown -R "${NEW_USERNAME}:${NEW_USERNAME}" "/home/${NEW_USERNAME}"
+
+    # Update inittab autologin to new user
+    sed -i "s/--autologin [a-zA-Z0-9_-]*/--autologin ${NEW_USERNAME}/" "${TARGET_MOUNT}/etc/inittab"
+
+    # Mount kernel pseudo-filesystems for chroot
+    mount --bind /dev "${TARGET_MOUNT}/dev"
+    mount --bind /proc "${TARGET_MOUNT}/proc"
+    mount --bind /sys "${TARGET_MOUNT}/sys"
+
+    # Install GRUB bootloader
+    echo "Installing GRUB bootloader on ${TARGET_DISK}..."
+    if [[ -d "/sys/firmware/efi" ]]; then
+        chroot "${TARGET_MOUNT}" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=XedraLinux --removable --recheck
+        # Ensure standard UEFI fallback executable exists for 100% firmware boot compatibility
+        mkdir -p "${TARGET_MOUNT}/boot/efi/EFI/BOOT"
+        if [[ -f "${TARGET_MOUNT}/boot/efi/EFI/XedraLinux/grubx64.efi" ]]; then
+            cp -f "${TARGET_MOUNT}/boot/efi/EFI/XedraLinux/grubx64.efi" "${TARGET_MOUNT}/boot/efi/EFI/BOOT/BOOTX64.EFI"
+        fi
+    else
+        chroot "${TARGET_MOUNT}" grub-install --target=i386-pc "${TARGET_DISK}" --recheck
+    fi
+    chroot "${TARGET_MOUNT}" update-grub
+
+    # Clean installer binary and menu shortcuts from target installed system
+    echo "Cleaning up installer shortcuts on installed system..."
+    rm -f "${TARGET_MOUNT}/usr/local/bin/xedra-installer"
+    for menu_file in "${TARGET_MOUNT}/etc/skel/.fluxbox/menu" "${TARGET_MOUNT}/home/${NEW_USERNAME}/.fluxbox/menu" "${TARGET_MOUNT}/root/.fluxbox/menu"; do
+        if [[ -f "${menu_file}" ]]; then
+            sed -i '/Install Xedra Linux/d' "${menu_file}" 2>/dev/null || true
+            sed -i '/^  \[separator\]/{n;/^  \[separator\]/d}' "${menu_file}" 2>/dev/null || true
+        fi
+    done
+
+    echo -e "  [ ${COLOR_GREEN}OK${COLOR_RESET} ] GRUB bootloader & user '${NEW_USERNAME}' configured successfully"
+    echo ""
+}
+
+cleanup() {
+    echo -e "${COLOR_BOLD}--- 5. Finalizing Installation ---${COLOR_RESET}"
+    umount "${TARGET_MOUNT}/dev" 2>/dev/null || true
+    umount "${TARGET_MOUNT}/proc" 2>/dev/null || true
+    umount "${TARGET_MOUNT}/sys" 2>/dev/null || true
+    umount "${TARGET_MOUNT}/boot/efi" 2>/dev/null || true
+    umount "${TARGET_MOUNT}" 2>/dev/null || true
+
+    echo ""
+    echo -e "${COLOR_BOLD}${COLOR_GREEN}======================================================${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_GREEN}  Xedra Linux Installation Completed Successfully!    ${COLOR_RESET}"
+    echo -e "${COLOR_BOLD}${COLOR_GREEN}======================================================${COLOR_RESET}"
+    echo ""
+    echo "Installation is complete! To boot into your installed system:"
+    echo "  1. In virt-manager or host: Eject/disconnect the Live CD-ROM/ISO."
+    echo "  2. Reset or reboot the VM (virt-manager: Virtual Machine -> Force Reset,"
+    echo "     or on host: virsh reset xedra-lab)."
+    echo ""
+}
+
+main() {
+    print_banner
+    verify_root
+    select_target_disk
+    configure_user_credentials
+    confirm_installation
+    partition_and_format
+    copy_system
+    configure_target_system
+    cleanup
+}
+
+main "$@"

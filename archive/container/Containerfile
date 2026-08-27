@@ -1,0 +1,36 @@
+# ==============================================================================
+# Xedra Linux - Minimal Debian Isolated Build Container
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Target Base:
+#   Debian 13 "Trixie" (Debian Stable, amd64)
+#
+# Purpose:
+#   Provides a clean, isolated Debian Trixie environment for building
+#   Xedra Linux without polluting the Linux Mint host.
+# ==============================================================================
+
+FROM docker.io/library/debian:trixie-slim
+
+# Enforce non-interactive package operations
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only minimal prerequisites needed for Debian workspace validation & bootstrapping
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        git \
+        debootstrap \
+        coreutils \
+        util-linux \
+        procps && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory to the mounted Xedra repository
+WORKDIR /workspace
+
+# Default command launches an interactive bash shell
+CMD ["/bin/bash"]

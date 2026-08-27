@@ -1,0 +1,36 @@
+#!/bin/sh
+# ==============================================================================
+# Xedra Linux - Default X11 Session Starter (.xinitrc)
+# ==============================================================================
+
+# 1. Load X resources if present
+if [ -f "$HOME/.Xresources" ]; then
+    xrdb -merge "$HOME/.Xresources"
+fi
+
+# 2. Set wide horizontal KVM display resolution (1600x900 / 1440x900 for optimal virt-manager window size)
+if command -v xrandr >/dev/null 2>&1; then
+    PRIMARY_DISP="$(xrandr | grep ' connected' | awk '{print $1}' | head -n 1)"
+    if [ -n "$PRIMARY_DISP" ]; then
+        xrandr --output "$PRIMARY_DISP" --mode 1600x900 2>/dev/null || \
+        xrandr --output "$PRIMARY_DISP" --mode 1440x900 2>/dev/null || \
+        xrandr --output "$PRIMARY_DISP" --mode 1366x768 2>/dev/null || \
+        xrandr --output "$PRIMARY_DISP" --mode 1280x720 2>/dev/null || true
+    fi
+fi
+
+# 3. Set clean solid dark background color
+if command -v xsetroot >/dev/null 2>&1; then
+    xsetroot -solid "#1e1e1e"
+fi
+
+# 4. Start SPICE agent for seamless mouse cursor & clipboard synchronization
+if command -v spice-vdagent >/dev/null 2>&1; then
+    spice-vdagent &
+fi
+
+# 5. Launch default terminal on desktop start (spacious 100x30 window)
+xterm -geometry 100x30+60+60 -bg black -fg white &
+
+# 6. Launch Fluxbox window manager as master X11 process
+exec fluxbox

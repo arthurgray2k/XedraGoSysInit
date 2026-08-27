@@ -1,0 +1,23 @@
+# Xedra Linux - Fluxbox Root Menu (v0.4.3)
+[begin] (Xedra Linux 0.4.3)
+  [exec] (Terminal) {xterm -bg black -fg white -fa 'Monospace' -fs 11}
+  [exec] (Micro Editor) {xterm -title 'Micro Editor' -e micro}
+  [separator]
+  [exec] (Install Xedra Linux) {xterm -title 'Xedra Linux Installer' -hold -e sudo /usr/local/bin/xedra-installer}
+  [separator]
+  [submenu] (System Tools)
+    [exec] (Resource Monitor (btop)) {xterm -title 'Resource Monitor' -e btop}
+    [exec] (System Info (fastfetch)) {xterm -title 'System Info' -hold -e fastfetch}
+    [exec] (Process Monitor (top)) {xterm -e top}
+    [exec] (Disk Space) {xterm -hold -e df -h}
+    [exec] (Network Info) {xterm -hold -e ip addr}
+  [end]
+  [separator]
+  [submenu] (Power Options)
+    [exec] (Shutdown VM) {sudo poweroff}
+    [exec] (Reboot VM) {sudo reboot}
+  [end]
+  [separator]
+  [restart] (Restart Fluxbox)
+  [exit] (Exit X11)
+[end]
