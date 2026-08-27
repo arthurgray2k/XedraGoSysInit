@@ -19,7 +19,7 @@ A consolidated cheat sheet for building, testing, configuring, and troubleshooti
 ssh builder@192.168.122.180
 
 # Build Xedra 0.4.3 ISO with dev cache (~2–3 minutes)
-cd ~/XedraGoSysInit
+cd ~/XedraLinux-GoSysVinit
 git pull
 sudo ./scripts/build-iso.sh --profile=dev
 
@@ -29,17 +29,17 @@ sudo ./scripts/build-iso.sh --profile=dev
 
 ### Step 2: Transfer the ISO (On Linux Host Terminal)
 ```bash
-cd ~/XedraGoSysInit
+cd ~/XedraLinux-GoSysVinit
 git pull
-scp builder@192.168.122.180:~/XedraGoSysInit/output/xedra-0.4.3-amd64-gosysvinit.iso* output/
+scp builder@192.168.122.180:~/XedraLinux-GoSysVinit/output/xedra-0.4.3-amd64-gosysvinit.iso* output/
 
 # (Or for minimal edition):
-# scp builder@192.168.122.180:~/XedraGoSysInit/output/xedra-0.4.3-minimal-amd64-gosysvinit.iso* output/
+# scp builder@192.168.122.180:~/XedraLinux-GoSysVinit/output/xedra-0.4.3-minimal-amd64-gosysvinit.iso* output/
 ```
 
 ### Step 3: Launch Test VM (On Linux Host Terminal)
 ```bash
-./scripts/vm/create-lab-vm.sh ~/XedraGoSysInit/output/xedra-0.4.3-amd64-gosysvinit.iso
+./scripts/vm/create-lab-vm.sh ~/XedraLinux-GoSysVinit/output/xedra-0.4.3-amd64-gosysvinit.iso
 virt-manager &
 ```
 

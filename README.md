@@ -1,6 +1,6 @@
 # Xedra Linux (with goSysVinit)
 
-**XedraGoSysInit** is a variation of [**XedraLinux**](https://github.com/arthurgray2k/XedraLinux) that uses [**`goSysVinit`**](https://github.com/arthurgray2k/goSysVinit)—a drop-in replacement init system written in Go—instead of traditional C SysVinit. It runs `goSysVinit` as its true PID 1 init daemon and complete userspace supervision suite.
+**XedraLinux-GoSysVinit** is a variation of [**XedraLinux**](https://github.com/arthurgray2k/XedraLinux) that uses [**`goSysVinit`**](https://github.com/arthurgray2k/goSysVinit)—a drop-in replacement init system written in Go—instead of traditional C SysVinit. It runs `goSysVinit` as its true PID 1 init daemon and complete userspace supervision suite.
 
 ## Core Environments
 
@@ -12,12 +12,12 @@ Linux Host (Physical Workstation)
      ├── xedra-builder (Debian 13 Trixie Builder VM)
      │     │      ├── Development Desktop: Fluxbox, Firefox-ESR, xterm, Git
      │     │      ├── Toolchain: debootstrap, live-build, xorriso, squashfs-tools
-     │     │      └── Local Repository: ~/XedraGoSysInit
+     │     │      └── Local Repository: ~/XedraLinux-GoSysVinit
      │     │
      │     └── xedra-lab (Disposable Test VM)
      │            └── Boots & verifies Xedra with goSysVinit ISO
      │
-     └── Source Repository: ~/XedraGoSysInit
+     └── Source Repository: ~/XedraLinux-GoSysVinit
 ```
 
 - **Development Host**: Linux Host (`x86_64`) — Physical workstation; manages Git and hypervisor.
@@ -95,6 +95,7 @@ sudo ~/XedraLinux/scripts/vm/bootstrap-builder.sh
 
 ## License
 
-- Xedra scripts, build tooling, and code: [GPL-3.0-or-later](LICENSE)
-- Documentation: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
-- Upstream packages retain their respective upstream licenses.
+* **Xedra Linux Project Code & Build Tooling**: [GPL-3.0-or-later](LICENSE)
+* **`goSysVinit`**: Separate project and separately licensed component ([GPL-2.0](https://github.com/arthurgray2k/goSysVinit/blob/main/LICENSE)). See the [goSysVinit repository](https://github.com/arthurgray2k/goSysVinit) and its accompanying license.
+* **Documentation**: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+* **Other Included Software & Upstream Packages**: Retain their respective upstream licenses.

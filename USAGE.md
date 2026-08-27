@@ -1,4 +1,4 @@
-# XedraGoSysInit Usage Guide
+# XedraLinux-GoSysVinit Usage Guide
 
 This document details common workflows, CLI commands, configuration options, and typical use cases for **Xedra Linux (with goSysVinit)**.
 
@@ -76,7 +76,7 @@ sudo apt-get install -y live-build debootstrap xorriso squashfs-tools mtools dos
 #### 1. Developer Profile (`dev` — Fast Iteration)
 Builds with persistent package cache and fast gzip compression:
 ```bash
-cd /home/mint/XedraGoSysInit
+cd ~/XedraLinux-GoSysVinit
 sudo ./scripts/build-iso.sh dev
 ```
 *Output artifact:* `output/xedra-0.4.3-amd64-gosysvinit.iso`
